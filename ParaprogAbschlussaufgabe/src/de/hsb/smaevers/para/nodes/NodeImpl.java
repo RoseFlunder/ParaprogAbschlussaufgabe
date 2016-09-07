@@ -20,13 +20,12 @@ public class NodeImpl extends NodeAbstract {
 	@Override
 	public void hello(Node neighbour) {
 		this.neighbours.add(neighbour);
-		startLatch.countDown();
 	}
 
 	@Override
 	public synchronized void wakeup(Node neighbour) {
 		responseCounter.incrementAndGet();
-		if (wakeUpNeighbour == null){
+		if (wakeUpNeighbour == null && !initiator){
 			this.wakeUpNeighbour = neighbour;
 			System.out.println(this + " received inital wakeup from " + neighbour);
 			start();
@@ -41,7 +40,7 @@ public class NodeImpl extends NodeAbstract {
 		if (this.data == null){
 			this.data = data;
 		} else {
-			this.data = this.data + "," +  data;
+			this.data = this.data + " ," +  data;
 		}
 		
 		responseCounter.incrementAndGet();
@@ -51,9 +50,11 @@ public class NodeImpl extends NodeAbstract {
 
 	@Override
 	public void setupNeighbours(Node... neighbours) {
-		for (Node node : neighbours) {
-			node.hello(this);
-			this.neighbours.add(node);
+		if (neighbours != null){
+			for (Node node : neighbours) {
+				node.hello(this);
+				this.neighbours.add(node);
+			}
 		}
 		
 		startLatch.countDown();
@@ -61,17 +62,15 @@ public class NodeImpl extends NodeAbstract {
 	
 	@Override
 	public void run() {
-		if (initiator){
-			try {
-				startLatch.await();
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+		try {
+			startLatch.await();
+			
+			for (Node node : neighbours) {
+				if (node != wakeUpNeighbour)
+					node.wakeup(this);
 			}
-		}
-		
-		for (Node node : neighbours) {
-			if (node != wakeUpNeighbour)
-				node.wakeup(this);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
 		}
 		
 		synchronized (this) {
